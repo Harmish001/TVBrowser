@@ -5,6 +5,9 @@ on:
     branches: [main, master]
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -45,9 +48,23 @@ jobs:
       - name: Rename APK
         run: cp android/app/build/outputs/apk/release/app-release.apk TVBrowser.apk
 
-      - name: Upload APK
+      - name: Show APK facts (SDK level, ABIs, features)
+        run: |
+          AAPT=$(ls "$ANDROID_HOME"/build-tools/*/aapt | sort -V | tail -1)
+          "$AAPT" dump badging TVBrowser.apk | grep -E "^(package|sdkVersion|targetSdkVersion|native-code|uses-feature|uses-implied-feature|uses-permission)" || true
+          echo "ABIs inside APK:"
+          unzip -l TVBrowser.apk | grep " lib/" | awk '{print $4}' | cut -d/ -f2 | sort -u || true
+
+      - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: TVBrowser-apk
           path: TVBrowser.apk
           if-no-files-found: error
+
+      - name: Publish GitHub Release (direct APK link)
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: build-${{ github.run_number }}
+          name: TVBrowser build ${{ github.run_number }}
+          files: TVBrowser.apk
